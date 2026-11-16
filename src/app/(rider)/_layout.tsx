@@ -19,9 +19,11 @@ export default function RiderLayout() {
         tabBarLabelStyle: { fontSize: 12, fontWeight: '500' },
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.text.primary,
-        headerTitleStyle: { fontWeight: '600' },
+        headerTitleStyle: { fontWeight: '700', fontSize: 17 },
+        headerShadowVisible: true,
       }}
     >
+      {/* Dashboard has its own coloured hero header */}
       <Tabs.Screen
         name="dashboard"
         options={{
@@ -30,14 +32,17 @@ export default function RiderLayout() {
           tabBarIcon: ({ color }) => <Bike size={24} color={color} />,
         }}
       />
+
       <Tabs.Screen
         name="deliveries"
         options={{
-          title: 'Deliveries',
-          headerShown: false,
+          title: 'My Deliveries',
+          headerShown: true,
           tabBarIcon: ({ color }) => <PackageCheck size={24} color={color} />,
         }}
       />
+
+      {/* Earnings has its own coloured hero header */}
       <Tabs.Screen
         name="earnings"
         options={{
@@ -46,16 +51,21 @@ export default function RiderLayout() {
           tabBarIcon: ({ color }) => <Wallet size={24} color={color} />,
         }}
       />
+
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          headerShown: false,
+          title: 'My Profile',
+          headerShown: true,
           tabBarIcon: ({ color }) => <User size={24} color={color} />,
         }}
       />
+
       {/* Hidden screen — not shown in tab bar */}
-      <Tabs.Screen name="delivery" options={{ href: null }} />
+      <Tabs.Screen
+        name="delivery/[id]"
+        options={{ href: null, title: 'Delivery Details', headerShown: true }}
+      />
     </Tabs>
   );
 }

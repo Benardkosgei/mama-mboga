@@ -10,6 +10,7 @@ import { getImageUrl } from '@/utils';
 import { colors, spacing, borderRadius } from '@/constants/theme';
 import { UNIT_TYPES, MAX_PRODUCT_IMAGES } from '@/constants';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 function SelectField({
   label, value, placeholder, options, onSelect, required,
@@ -127,16 +128,23 @@ export default function AddProduct() {
   }, [existingProduct]);
 
   const uploadImage = async (uri: string, productId: string, index: number) => {
-    const ext = (uri.split('.').pop() || 'jpg').toLowerCase().split('?')[0];
-    const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-    const fileName = `${productId}/${Date.now()}_${index}.${ext}`;
-    const response = await fetch(uri);
+    // Compress and resize before upload — keeps uploads fast and storage lean
+    const compressed = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 800 } }], // max 800px wide, height auto-scales
+      { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
+    );
+
+    const fileName = `${productId}/${Date.now()}_${index}.jpg`;
+    const response = await fetch(compressed.uri);
     const arrayBuffer = await response.arrayBuffer();
     const { error: uploadError } = await supabase.storage
       .from('product-images')
-      .upload(fileName, arrayBuffer, { contentType: mimeType, upsert: false });
+      .upload(fileName, arrayBuffer, { contentType: 'image/jpeg', upsert: false });
     if (uploadError) throw uploadError;
-    const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(fileName);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('product-images').getPublicUrl(fileName);
     return publicUrl;
   };
 
@@ -208,20 +216,51 @@ export default function AddProduct() {
       Alert.alert('Limit reached', `Max ${MAX_PRODUCT_IMAGES} images`);
       return;
     }
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photo library');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      setImages([...images, { type: 'new', uri: result.assets[0].uri }]);
-    }
+
+    Alert.alert(
+      'Add Photo',
+      'Choose a source',
+      [
+        {
+          text: '📷 Take Photo',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permission needed', 'Please allow camera access to take photos.');
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              allowsEditing: true,
+              aspect: [4, 3],
+              quality: 1,
+            });
+            if (!result.canceled) {
+              setImages([...images, { type: 'new', uri: result.assets[0].uri }]);
+            }
+          },
+        },
+        {
+          text: '🖼️ Choose from Library',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permission needed', 'Please allow access to your photo library.');
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [4, 3],
+              quality: 1,
+            });
+            if (!result.canceled) {
+              setImages([...images, { type: 'new', uri: result.assets[0].uri }]);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
   };
 
   const removeImage = (index: number) => {
@@ -262,7 +301,7 @@ export default function AddProduct() {
           {images.length < MAX_PRODUCT_IMAGES && (
             <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
               <Text style={styles.addImageIcon}>📷</Text>
-              <Text style={styles.addImageText}>Add Photo</Text>
+              <Text style={styles.addImageText}>Camera / Library</Text>
             </TouchableOpacity>
           )}
         </View>

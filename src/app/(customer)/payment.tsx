@@ -6,7 +6,9 @@ import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { Truck } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
-import { formatPrice } from '@/utils';
+import { useAuthStore } from '@/store/authStore';
+import { usePaymentSettings } from '@/hooks';
+import { formatPrice, formatDeliveryPhone } from '@/utils';
 import { colors, spacing, borderRadius } from '@/constants/theme';
 
 const MPESA_API_URL = process.env.EXPO_PUBLIC_MPESA_API_URL || 'http://localhost:3000';
@@ -15,12 +17,23 @@ export default function PaymentScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ orderId: string; method: string }>();
   const isPod = params.method === 'pod';
+  const { profile } = useAuthStore();
+  const { data: paymentSettings } = usePaymentSettings();
 
-  const [phone, setPhone] = useState('');
+  // Pre-fill: saved M-Pesa phone > profile phone > empty
+  const profilePhone = profile?.phone ? formatDeliveryPhone(profile.phone) : '';
+  const [phone, setPhone] = useState(profilePhone);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'pending' | 'success' | 'failed'>('idle');
   const cancelPollRef = useRef<(() => void) | null>(null);
+
+  // Apply saved M-Pesa phone once settings load
+  useEffect(() => {
+    if (paymentSettings?.mpesaPhone) {
+      setPhone(paymentSettings.mpesaPhone);
+    }
+  }, [paymentSettings?.mpesaPhone]);
 
   // Cleanup poll on unmount
   useEffect(() => {
@@ -49,6 +62,10 @@ export default function PaymentScreen() {
   }, [isPod, order]);
 
   const handleInitiatePayment = async () => {
+    if (!order) {
+      setError('Order not found. Please go back and try again.');
+      return;
+    }
     if (!phone || phone.length < 10) {
       setError('Please enter a valid phone number');
       return;
@@ -83,22 +100,26 @@ export default function PaymentScreen() {
     const poll = async () => {
       if (cancelled) return;
       attempts++;
-      const { data: payment } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('checkout_request_id', checkoutId)
-        .single();
+      try {
+        const { data: payment } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('checkout_request_id', checkoutId)
+          .single();
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      if (payment?.status === 'completed') {
-        setPaymentStatus('success');
-        return;
-      }
-      if (payment?.status === 'failed') {
-        setPaymentStatus('failed');
-        setError('Payment failed. Please try again.');
-        return;
+        if (payment?.status === 'completed') {
+          setPaymentStatus('success');
+          return;
+        }
+        if (payment?.status === 'failed') {
+          setPaymentStatus('failed');
+          setError('Payment failed. Please try again.');
+          return;
+        }
+      } catch {
+        // Network error during poll — keep trying
       }
       if (attempts < maxAttempts) {
         setTimeout(poll, 2000);
@@ -212,6 +233,28 @@ export default function PaymentScreen() {
               <Text style={styles.pendingHint}>
                 Check your phone and complete the M-Pesa payment
               </Text>
+              <Button
+                mode="text"
+                onPress={() => {
+                  cancelPollRef.current?.();
+                  setPaymentStatus('idle');
+                  setError('');
+                }}
+                style={{ marginTop: spacing.md }}
+              >
+                Cancel
+              </Button>
+            </View>
+          ) : paymentStatus === 'failed' ? (
+            <View style={styles.pendingContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              <Button
+                mode="contained"
+                onPress={() => { setPaymentStatus('idle'); setError(''); }}
+                style={styles.payButton}
+              >
+                Try Again
+              </Button>
             </View>
           ) : (
             <Button

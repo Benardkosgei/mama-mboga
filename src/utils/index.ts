@@ -50,7 +50,7 @@ export const truncateText = (text: string, maxLength: number): string => {
 };
 
 export const getImageUrl = (url: string | undefined): string => {
-  if (!url) return 'https://via.placeholder.com/300x200?text=No+Image';
+  if (!url) return '';
   if (url.startsWith('http')) return url;
   return `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${url}`;
 };

@@ -1,31 +1,45 @@
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Order } from '@/types';
 
 export function useOrders() {
   const queryClient = useQueryClient();
+  // Keep a stable ref so the effect closure never captures a stale queryClient
+  const queryClientRef = useRef(queryClient);
+  queryClientRef.current = queryClient;
 
-  // Fix realtime: subscribe once, remove only this channel on cleanup
   useEffect(() => {
+    // Subscribe once per mount — the channel name is unique so Supabase won't
+    // create duplicate subscriptions even if the hook is used in multiple places.
     const channel = supabase
       .channel('orders-realtime')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
-      })
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        () => {
+          queryClientRef.current.invalidateQueries({ queryKey: ['orders'] });
+        }
+      )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []); // empty deps — subscribe once per hook mount
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []); // empty — subscribe once, clean up on unmount
 
   return useInfiniteQuery({
     queryKey: ['orders'],
     queryFn: async ({ pageParam = 0 }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
       const { data, error } = await supabase
         .from('orders')
-        .select(`
+        .select(
+          `
           *,
           address:addresses(*),
           items:order_items(
@@ -36,7 +50,8 @@ export function useOrders() {
             *,
             rider:profiles!rider_id(id, full_name, phone)
           )
-        `)
+        `
+        )
         .eq('customer_id', user.id)
         .order('created_at', { ascending: false })
         .range(pageParam, pageParam + 19);
@@ -49,7 +64,6 @@ export function useOrders() {
       if (lastPage.length < 20) return undefined;
       return allPages.length * 20;
     },
-    enabled: true,
   });
 }
 
@@ -59,7 +73,8 @@ export function useOrder(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('orders')
-        .select(`
+        .select(
+          `
           *,
           customer:profiles!customer_id(id, full_name, phone),
           address:addresses(*),
@@ -72,7 +87,8 @@ export function useOrder(id: string) {
             *,
             rider:profiles!rider_id(id, full_name, phone)
           )
-        `)
+        `
+        )
         .eq('id', id)
         .single();
       if (error) throw error;
@@ -83,6 +99,7 @@ export function useOrder(id: string) {
 }
 
 export function useCreateOrder() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (orderData: {
       addressId: string;
@@ -91,7 +108,9 @@ export function useCreateOrder() {
       total: number;
       notes?: string;
     }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
       // Get cart items
@@ -106,7 +125,10 @@ export function useCreateOrder() {
       }
 
       // Generate order number
-      const orderNumber = `#${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const orderNumber = `#${Date.now().toString(36).toUpperCase()}${Math.random()
+        .toString(36)
+        .substring(2, 6)
+        .toUpperCase()}`;
 
       // Create order
       const { data: order, error: orderError } = await supabase
@@ -137,19 +159,37 @@ export function useCreateOrder() {
         total: (item.product.discount_price || item.product.price) * item.quantity,
       }));
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
-
+      const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
       if (itemsError) throw itemsError;
 
-      // Clear cart
-      await supabase
-        .from('cart_items')
-        .delete()
-        .eq('cart_id', cartData.items[0].cart_id);
+      // Decrement stock for each product
+      for (const item of cartData.items) {
+        await supabase.rpc('decrement_stock', {
+          p_product_id: item.product_id,
+          p_quantity: item.quantity,
+        });
+      }
+
+      // Clear cart — collect all unique cart_ids to handle edge cases
+      const cartIds = [...new Set(cartData.items.map((i: any) => i.cart_id))];
+      for (const cartId of cartIds) {
+        await supabase.from('cart_items').delete().eq('cart_id', cartId);
+      }
+
+      // Notify customer that order was placed
+      await supabase.from('notifications').insert({
+        user_id: user.id,
+        title: 'Order Placed',
+        body: `Your order ${order.order_number} has been placed successfully.`,
+        data: { orderId: order.id, type: 'order_placed' },
+      });
 
       return order;
+    },
+    onSuccess: () => {
+      // Invalidate cart so UI clears immediately, and orders list for history
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
   });
 }

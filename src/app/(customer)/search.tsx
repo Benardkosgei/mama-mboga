@@ -42,7 +42,7 @@ export default function SearchScreen() {
   const handleCategoryPress = (categoryId: string) => {
     setSearchQuery('');
     setDebouncedQuery('');
-    router.push({ pathname: '/(customer)/home', params: { category: categoryId } });
+    router.push({ pathname: '/(customer)/home', params: { categoryId: categoryId } });
   };
 
   const renderEmptyState = () => (

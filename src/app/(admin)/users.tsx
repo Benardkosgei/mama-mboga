@@ -176,10 +176,6 @@ export default function AdminUsers() {
 
       {/* Filters */}
       <Surface style={styles.filterCard} elevation={1}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>User Management</Text>
-          <Text style={styles.totalCount}>{filtered.length} users</Text>
-        </View>
         <View style={styles.searchRow}>
           <Searchbar
             placeholder="Search by name or phone..."
@@ -374,9 +370,6 @@ const styles = StyleSheet.create({
   pendingActions: { flexDirection: 'row', gap: spacing.sm },
 
   filterCard: { padding: spacing.lg, borderRadius: borderRadius.lg, backgroundColor: colors.surface },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  title: { fontSize: 20, fontWeight: 'bold', color: colors.text.primary },
-  totalCount: { fontSize: 13, color: colors.text.secondary },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   searchbar: { flex: 1, borderRadius: borderRadius.md },
   filterBtn: { margin: 0, borderRadius: borderRadius.md, backgroundColor: colors.background },

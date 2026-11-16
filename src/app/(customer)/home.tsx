@@ -13,7 +13,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { profile } = useAuthStore();
   // Accept categoryId from the categories tab navigation
-  const params = useLocalSearchParams<{ categoryId?: string }>();
+  const params = useLocalSearchParams<{ categoryId?: string; categoryName?: string }>();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
     params.categoryId ?? null
   );
@@ -32,6 +32,11 @@ export default function HomeScreen() {
   } = useProducts(selectedCategory || undefined, searchQuery || undefined);
 
   const allProducts = productsData?.pages.flatMap((page) => page) || [];
+
+  // Resolve the display name for the selected category
+  const selectedCategoryName = selectedCategory
+    ? (categories?.find((c) => c.id === selectedCategory)?.name ?? params.categoryName ?? 'Products')
+    : null;
 
   const handleProductPress = (productId: string) => {
     router.push(`/(customer)/product/${productId}`);
@@ -128,11 +133,7 @@ export default function HomeScreen() {
         {/* All Products */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            {selectedCategory
-              ? categories?.find((c) => c.id === selectedCategory)?.name || 'Products'
-              : searchQuery
-              ? `Search Results`
-              : 'All Products'}
+            {selectedCategoryName ?? (searchQuery ? 'Search Results' : 'All Products')}
           </Text>
           {productsLoading && !allProducts.length ? (
             <View style={styles.loadingContainer}>

@@ -8,10 +8,12 @@ interface AuthState {
   profile: Profile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  signOutError: string | null;
   setSession: (session: any) => void;
   setProfile: (profile: Profile | null) => void;
   setLoading: (loading: boolean) => void;
-  logout: () => void;
+  clearSignOutError: () => void;
+  logout: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -21,15 +23,46 @@ export const useAuthStore = create<AuthState>()(
       profile: null,
       isLoading: true,
       isAuthenticated: false,
-      setSession: (session) => set({ session, isAuthenticated: !!session }),
-      setProfile: (profile) => set({ profile, isAuthenticated: !!profile }),
+      signOutError: null,
+      setSession: (session) => set((state) => ({ 
+        session, 
+        isAuthenticated: !!session && !!state.profile 
+      })),
+      setProfile: (profile) => set((state) => ({ 
+        profile, 
+        isAuthenticated: !!profile && !!state.session 
+      })),
       setLoading: (isLoading) => set({ isLoading }),
-      logout: () => set({ session: null, profile: null, isAuthenticated: false }),
+      clearSignOutError: () => set({ signOutError: null }),
+      logout: async () => {
+        // Clear local state first for immediate UX; still attempt remote sign-out.
+        set({ session: null, profile: null, isAuthenticated: false });
+        try {
+          const { supabase } = await import('@/lib/supabase');
+          const { error } = await supabase.auth.signOut();
+          if (error) {
+            set({ signOutError: error.message });
+          } else {
+            set({ signOutError: null });
+          }
+        } catch (error: any) {
+          set({ signOutError: error?.message || 'Failed to sign out from server session.' });
+        }
+      },
     }),
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      // Only persist session and profile — never persist isLoading.
+      // isLoading always starts as true and is resolved by the auth listener.
       partialize: (state) => ({ session: state.session, profile: state.profile }),
+      onRehydrateStorage: () => (state) => {
+        // After rehydration, ensure isLoading is true so the auth listener
+        // in _layout.tsx always runs and resolves it.
+        if (state) {
+          state.isLoading = true;
+        }
+      },
     }
   )
 );

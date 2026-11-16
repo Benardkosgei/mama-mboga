@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, Surface, Button, ActivityIndicator } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChevronRight } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -10,6 +12,7 @@ import { colors, spacing, borderRadius } from '@/constants/theme';
 
 export default function SellerDashboard() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuthStore();
 
   const { data: stats, isLoading } = useQuery({
@@ -18,14 +21,18 @@ export default function SellerDashboard() {
       if (!profile?.id) return null;
       const [productsRes, activeOrdersRes, revenueRes] = await Promise.all([
         supabase.from('products').select('id', { count: 'exact', head: true }).eq('seller_id', profile.id),
-        // Count distinct orders that contain this seller's items and are in active statuses
         supabase
           .from('order_items')
-          .select('order_id', { count: 'exact', head: true })
-          .eq('seller_id', profile.id),
-        supabase.from('order_items').select('total').eq('seller_id', profile.id),
+          .select('order_id, order:orders!inner(status)', { count: 'exact', head: true })
+          .eq('seller_id', profile.id)
+          .in('order.status', ['paid', 'processing', 'dispatched', 'out_for_delivery']),
+        supabase
+          .from('order_items')
+          .select('total, order:orders!inner(payment_status)')
+          .eq('seller_id', profile.id)
+          .eq('order.payment_status', 'completed'),
       ]);
-      const totalRevenue = (revenueRes.data || []).reduce((sum, i) => sum + (i.total || 0), 0);
+      const totalRevenue = (revenueRes.data || []).reduce((sum: number, i: any) => sum + (i.total || 0), 0);
       return {
         totalProducts: productsRes.count ?? 0,
         activeOrders: activeOrdersRes.count ?? 0,
@@ -52,42 +59,68 @@ export default function SellerDashboard() {
   });
 
   const statCards = [
-    { label: 'Total Products', value: isLoading ? '—' : String(stats?.totalProducts ?? 0), icon: '📦' },
-    { label: 'Active Orders', value: isLoading ? '—' : String(stats?.activeOrders ?? 0), icon: '🛒' },
-    { label: 'Total Sales', value: isLoading ? '—' : formatPrice(stats?.totalRevenue ?? 0), icon: '💰' },
+    {
+      label: 'Total Products',
+      value: isLoading ? '—' : String(stats?.totalProducts ?? 0),
+      icon: '📦',
+      color: colors.primary[500],
+      onPress: () => router.push('/(seller)/products'),
+    },
+    {
+      label: 'Active Orders',
+      value: isLoading ? '—' : String(stats?.activeOrders ?? 0),
+      icon: '🛒',
+      color: colors.warning,
+      onPress: () => router.push('/(seller)/orders'),
+    },
+    {
+      label: 'Total Sales',
+      value: isLoading ? '—' : formatPrice(stats?.totalRevenue ?? 0),
+      icon: '💰',
+      color: colors.success,
+      onPress: () => router.push('/(seller)/orders'),
+    },
   ];
 
   const quickActions = [
     { label: 'Add Product', icon: 'plus-circle-outline', onPress: () => router.push('/(seller)/add-product') },
-    { label: 'Manage Products', icon: 'package-variant', onPress: () => router.push('/(seller)/products') },
+    { label: 'My Products', icon: 'package-variant', onPress: () => router.push('/(seller)/products') },
     { label: 'View Orders', icon: 'clipboard-list-outline', onPress: () => router.push('/(seller)/orders') },
   ];
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Header */}
-        <Surface style={styles.header} elevation={1}>
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.greeting}>Hello, {profile?.full_name?.split(' ')[0] || 'Seller'}! 👋</Text>
-              <Text style={styles.subtitle}>Welcome to your seller dashboard</Text>
-            </View>
-          </View>
-        </Surface>
 
-        {/* Stats */}
+      {/* ── Sticky header ─────────────────────────────────────────────────── */}
+      <Surface style={[styles.header, { paddingTop: insets.top + spacing.md }]} elevation={2}>
+        <Text style={styles.greeting}>Hello, {profile?.full_name?.split(' ')[0] || 'Seller'}! 👋</Text>
+        <Text style={styles.subtitle}>Welcome to your seller dashboard</Text>
+      </Surface>
+
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+
+        {/* ── Stat cards ──────────────────────────────────────────────────── */}
         <View style={styles.statsRow}>
           {statCards.map((stat, index) => (
-            <Surface key={index} style={styles.statCard} elevation={1}>
-              <Text style={styles.statIcon}>{stat.icon}</Text>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </Surface>
+            <TouchableOpacity
+              key={index}
+              style={styles.statCardWrapper}
+              onPress={stat.onPress}
+              activeOpacity={0.75}
+            >
+              <Surface style={[styles.statCard, { borderTopColor: stat.color }]} elevation={1}>
+                <View style={styles.statCardTop}>
+                  <Text style={styles.statIcon}>{stat.icon}</Text>
+                  <ChevronRight size={14} color={colors.text.disabled} />
+                </View>
+                <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
+                <Text style={styles.statLabel}>{stat.label}</Text>
+              </Surface>
+            </TouchableOpacity>
           ))}
         </View>
 
-        {/* Quick Actions */}
+        {/* ── Quick actions ────────────────────────────────────────────────── */}
         <Surface style={styles.actionsCard} elevation={1}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionsGrid}>
@@ -106,140 +139,101 @@ export default function SellerDashboard() {
           </View>
         </Surface>
 
-        {/* Recent Activity */}
+        {/* ── Recent activity ──────────────────────────────────────────────── */}
         <Surface style={styles.recentCard} elevation={1}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            <Button mode="text" compact onPress={() => router.push('/(seller)/orders')}>
+              View All
+            </Button>
+          </View>
           {ordersLoading ? (
             <ActivityIndicator size="small" color={colors.primary[500]} style={{ marginVertical: spacing.lg }} />
           ) : recentOrders?.length ? (
             recentOrders.map((item: any) => (
-              <View key={item.id} style={styles.activityRow}>
+              <TouchableOpacity
+                key={item.id}
+                style={styles.activityRow}
+                onPress={() => router.push('/(seller)/orders')}
+                activeOpacity={0.7}
+              >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.activityOrder}>{item.order?.order_number}</Text>
                   <Text style={styles.activityCustomer}>{item.order?.customer?.full_name}</Text>
                 </View>
                 <Text style={styles.activityAmount}>{formatPrice(item.total)}</Text>
-              </View>
+                <ChevronRight size={16} color={colors.text.disabled} style={{ marginLeft: spacing.sm }} />
+              </TouchableOpacity>
             ))
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>📊</Text>
               <Text style={styles.emptyText}>No recent activity</Text>
-              <Text style={styles.emptyHint}>Your recent orders and updates will appear here</Text>
+              <Text style={styles.emptyHint}>Your recent orders will appear here</Text>
             </View>
           )}
         </Surface>
+
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: spacing.md,
-    paddingBottom: 100,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+
+  // Sticky header
   header: {
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
     backgroundColor: colors.primary[500],
-    marginBottom: spacing.lg,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    zIndex: 10,
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  greeting: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.white,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.primary[100],
-    marginTop: spacing.xs,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
-  },
+  greeting: { fontSize: 24, fontWeight: 'bold', color: colors.white },
+  subtitle: { fontSize: 14, color: colors.primary[100], marginTop: spacing.xs },
+
+  scroll: { flex: 1 },
+  scrollContent: { padding: spacing.md, paddingBottom: 100 },
+
+  // Stat cards
+  statsRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
+  statCardWrapper: { flex: 1 },
   statCard: {
-    flex: 1,
-    alignItems: 'center',
     padding: spacing.md,
-    marginHorizontal: spacing.xs,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     backgroundColor: colors.surface,
+    borderTopWidth: 3,
   },
-  statIcon: {
-    fontSize: 24,
+  statCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-  },
-  statLabel: {
-    fontSize: 10,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-    textAlign: 'center',
-  },
+  statIcon: { fontSize: 22 },
+  statValue: { fontSize: 18, fontWeight: 'bold' },
+  statLabel: { fontSize: 10, color: colors.text.secondary, marginTop: spacing.xs },
+
+  // Quick actions
   actionsCard: {
     padding: spacing.lg,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.surface,
     marginBottom: spacing.lg,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginBottom: spacing.md,
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  actionButton: {
-    flex: 1,
-    minWidth: 100,
-  },
-  actionButtonContent: {
-    paddingVertical: spacing.sm,
-  },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: colors.text.primary, marginBottom: spacing.md },
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  actionButton: { flex: 1, minWidth: 100 },
+  actionButtonContent: { paddingVertical: spacing.sm },
+
+  // Recent activity
   recentCard: {
     padding: spacing.lg,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.surface,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: spacing.md,
-    opacity: 0.5,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  emptyHint: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-    textAlign: 'center',
   },
   activityRow: {
     flexDirection: 'row',
@@ -248,19 +242,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  activityOrder: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  activityCustomer: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    marginTop: 2,
-  },
-  activityAmount: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary[500],
-  },
+  activityOrder: { fontSize: 14, fontWeight: '600', color: colors.text.primary },
+  activityCustomer: { fontSize: 12, color: colors.text.secondary, marginTop: 2 },
+  activityAmount: { fontSize: 14, fontWeight: '600', color: colors.primary[500] },
+
+  emptyState: { alignItems: 'center', paddingVertical: spacing.xl },
+  emptyIcon: { fontSize: 48, marginBottom: spacing.md, opacity: 0.5 },
+  emptyText: { fontSize: 14, fontWeight: '600', color: colors.text.primary },
+  emptyHint: { fontSize: 12, color: colors.text.secondary, marginTop: spacing.xs, textAlign: 'center' },
 });

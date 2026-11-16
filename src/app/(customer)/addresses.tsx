@@ -3,16 +3,29 @@ import { View, StyleSheet, FlatList, Alert } from 'react-native';
 import { Text, Button, Surface, TextInput, RadioButton, ActivityIndicator } from 'react-native-paper';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/authStore';
+import { formatDeliveryPhone } from '@/utils';
 import { colors, spacing, borderRadius } from '@/constants/theme';
 import type { Address } from '@/types';
 
 export default function AddressesScreen() {
   const queryClient = useQueryClient();
+  const { profile } = useAuthStore();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [street, setStreet] = useState('');
   const [landmark, setLandmark] = useState('');
+
+  // Pre-fill phone from profile when opening the form
+  const openForm = () => {
+    const profilePhone = profile?.phone ? formatDeliveryPhone(profile.phone) : '';
+    setPhone(profilePhone);
+    setName('');
+    setStreet('');
+    setLandmark('');
+    setShowForm(true);
+  };
 
   const { data: addresses, isLoading } = useQuery({
     queryKey: ['addresses'],
@@ -124,11 +137,24 @@ export default function AddressesScreen() {
             <Surface style={styles.form} elevation={1}>
               <Text style={styles.formTitle}>New Address</Text>
               <TextInput mode="outlined" label="Label (e.g. Home)" value={name} onChangeText={setName} style={styles.input} />
-              <TextInput mode="outlined" label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={styles.input} />
+              <TextInput
+                mode="outlined"
+                label="Phone"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                style={styles.input}
+                left={<TextInput.Icon icon="phone-outline" />}
+                right={
+                  profile?.phone && phone !== formatDeliveryPhone(profile.phone)
+                    ? <TextInput.Icon icon="refresh" onPress={() => setPhone(formatDeliveryPhone(profile.phone!))} />
+                    : undefined
+                }
+              />
               <TextInput mode="outlined" label="Street Address *" value={street} onChangeText={setStreet} style={styles.input} />
               <TextInput mode="outlined" label="Landmark (optional)" value={landmark} onChangeText={setLandmark} style={styles.input} />
               <View style={styles.formActions}>
-                <Button mode="outlined" onPress={() => setShowForm(false)} style={styles.formBtn}>Cancel</Button>
+                <Button mode="outlined" onPress={() => { setShowForm(false); }} style={styles.formBtn}>Cancel</Button>
                 <Button
                   mode="contained"
                   onPress={() => addMutation.mutate()}
@@ -141,7 +167,7 @@ export default function AddressesScreen() {
               </View>
             </Surface>
           ) : (
-            <Button mode="contained" icon="plus" onPress={() => setShowForm(true)} style={styles.addButton}>
+            <Button mode="contained" icon="plus" onPress={openForm} style={styles.addButton}>
               Add New Address
             </Button>
           )

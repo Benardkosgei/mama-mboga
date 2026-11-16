@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, Surface, Button, ActivityIndicator, Chip } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChevronRight } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -12,6 +14,7 @@ import type { DeliveryStatus } from '@/types';
 
 export default function RiderDashboard() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuthStore();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -60,15 +63,16 @@ export default function RiderDashboard() {
   });
 
   const statCards = [
-    { label: "Today's Deliveries", value: statsLoading ? '—' : String(stats?.total ?? 0), icon: '📦' },
-    { label: 'Completed', value: statsLoading ? '—' : String(stats?.completed ?? 0), icon: '✅' },
-    { label: 'Pending', value: statsLoading ? '—' : String(stats?.pending ?? 0), icon: '⏳' },
-    { label: 'Earnings', value: statsLoading ? '—' : formatPrice(stats?.earnings ?? 0), icon: '💰' },
+    { label: "Today's Deliveries", value: statsLoading ? '—' : String(stats?.total ?? 0), icon: '📦', color: colors.primary[500], onPress: () => router.push('/(rider)/deliveries') },
+    { label: 'Completed', value: statsLoading ? '—' : String(stats?.completed ?? 0), icon: '✅', color: colors.success, onPress: () => router.push('/(rider)/deliveries') },
+    { label: 'Pending', value: statsLoading ? '—' : String(stats?.pending ?? 0), icon: '⏳', color: colors.warning, onPress: () => router.push('/(rider)/deliveries') },
+    { label: 'Earnings', value: statsLoading ? '—' : formatPrice(stats?.earnings ?? 0), icon: '💰', color: colors.secondary[500], onPress: () => router.push('/(rider)/earnings') },
   ];
 
   return (
-    <ScrollView style={styles.container}>
-      <Surface style={styles.header} elevation={1}>
+    <View style={styles.container}>
+      {/* Sticky header — lives outside ScrollView */}
+      <Surface style={[styles.header, { paddingTop: insets.top + spacing.md }]} elevation={2}>
         <Text style={styles.greeting}>Hello, {profile?.full_name?.split(' ')[0] || 'Rider'}! 🚴</Text>
         <Text style={styles.subtitle}>Ready for deliveries?</Text>
         <View style={styles.statusBadge}>
@@ -77,13 +81,25 @@ export default function RiderDashboard() {
         </View>
       </Surface>
 
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+
       <View style={styles.statsGrid}>
         {statCards.map((stat, index) => (
-          <Surface key={index} style={styles.statCard} elevation={1}>
-            <Text style={styles.statIcon}>{stat.icon}</Text>
-            <Text style={styles.statValue}>{stat.value}</Text>
-            <Text style={styles.statLabel}>{stat.label}</Text>
-          </Surface>
+          <TouchableOpacity
+            key={index}
+            style={styles.statCardWrapper}
+            onPress={stat.onPress}
+            activeOpacity={0.75}
+          >
+            <Surface style={[styles.statCard, { borderTopColor: stat.color }]} elevation={1}>
+              <View style={styles.statCardTop}>
+                <Text style={styles.statIcon}>{stat.icon}</Text>
+                <ChevronRight size={14} color={colors.text.disabled} />
+              </View>
+              <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </Surface>
+          </TouchableOpacity>
         ))}
       </View>
 
@@ -138,22 +154,46 @@ export default function RiderDashboard() {
           </Button>
         </View>
       </Surface>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: { padding: spacing.xl, backgroundColor: colors.primary[500], borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  header: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
+    backgroundColor: colors.primary[500],
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    zIndex: 10,
+  },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 100 },
   greeting: { fontSize: 24, fontWeight: 'bold', color: colors.white },
   subtitle: { fontSize: 14, color: colors.primary[100], marginTop: spacing.xs },
   statusBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: spacing.md, paddingVertical: spacing.xs, paddingHorizontal: spacing.md, backgroundColor: colors.white + '20', borderRadius: borderRadius.full },
   onlineIndicator: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success, marginRight: spacing.sm },
   statusText: { color: colors.white, fontSize: 12, fontWeight: '500' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: spacing.md, gap: spacing.md },
-  statCard: { flex: 1, minWidth: 140, padding: spacing.lg, borderRadius: borderRadius.lg, backgroundColor: colors.surface, alignItems: 'center' },
-  statIcon: { fontSize: 24, marginBottom: spacing.sm },
-  statValue: { fontSize: 20, fontWeight: 'bold', color: colors.text.primary },
+  statCardWrapper: { flex: 1, minWidth: 140 },
+  statCard: {
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    borderTopWidth: 3,
+  },
+  statCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: spacing.sm,
+  },
+  statIcon: { fontSize: 24 },
+  statValue: { fontSize: 20, fontWeight: 'bold' },
   statLabel: { fontSize: 12, color: colors.text.secondary, marginTop: spacing.xs, textAlign: 'center' },
   section: { margin: spacing.md, marginTop: 0, padding: spacing.lg, borderRadius: borderRadius.lg, backgroundColor: colors.surface },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },

@@ -1,44 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, TextInput, Button, Surface, RadioButton } from 'react-native-paper';
+import { Text, TextInput, Button, Surface, RadioButton, ActivityIndicator } from 'react-native-paper';
 import { Smartphone, Truck } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
-import { useAppStore } from '@/store/authStore';
 import { validatePhoneNumber } from '@/utils';
 import { colors, spacing, borderRadius } from '@/constants/theme';
+import { usePaymentSettings, useSavePaymentSettings } from '@/hooks';
 
 type DefaultPayment = 'mpesa' | 'pod';
 
 export default function PaymentSettingsScreen() {
   const { profile } = useAuthStore();
-  const { selectedRole } = useAppStore();
+  const { data: settings, isLoading } = usePaymentSettings();
+  const saveMutation = useSavePaymentSettings();
 
-  // Pre-fill with profile phone, stripped to local format
-  const rawPhone = profile?.phone?.replace('+254', '0').replace('254', '0') || '';
+  const rawPhone = profile?.phone?.replace('+254', '0').replace(/^254/, '0') || '';
+
   const [mpesaPhone, setMpesaPhone] = useState(rawPhone);
   const [defaultMethod, setDefaultMethod] = useState<DefaultPayment>('mpesa');
-  const [saved, setSaved] = useState(false);
+
+  // Populate from persisted settings once loaded
+  useEffect(() => {
+    if (!settings) return;
+    setDefaultMethod(settings.defaultMethod);
+    setMpesaPhone(settings.mpesaPhone || rawPhone);
+  }, [settings]);
 
   const handleSave = () => {
     if (defaultMethod === 'mpesa' && !validatePhoneNumber(mpesaPhone)) {
       Alert.alert('Invalid Number', 'Please enter a valid Safaricom number.');
       return;
     }
-    // Persisted locally — no backend table for payment prefs yet
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-    Alert.alert('Saved', 'Your payment preferences have been saved.');
+    saveMutation.mutate(
+      { defaultMethod, mpesaPhone },
+      {
+        onSuccess: () => Alert.alert('Saved', 'Your payment preferences have been saved.'),
+        onError: (e: any) => Alert.alert('Error', e.message),
+      }
+    );
   };
+
+  if (isLoading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={colors.primary[500]} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Default Payment Method */}
       <Surface style={styles.card} elevation={1}>
         <Text style={styles.cardTitle}>Default Payment Method</Text>
+        <Text style={styles.hint}>
+          This will be pre-selected at checkout. You can always change it per order.
+        </Text>
 
-        <View
-          style={[styles.methodRow, defaultMethod === 'mpesa' && styles.methodRowActive]}
-        >
+        <View style={[styles.methodRow, defaultMethod === 'mpesa' && styles.methodRowActive]}>
           <View style={[styles.methodIcon, { backgroundColor: colors.success + '18' }]}>
             <Smartphone size={20} color={colors.success} />
           </View>
@@ -54,9 +73,7 @@ export default function PaymentSettingsScreen() {
           />
         </View>
 
-        <View
-          style={[styles.methodRow, defaultMethod === 'pod' && styles.methodRowActive]}
-        >
+        <View style={[styles.methodRow, defaultMethod === 'pod' && styles.methodRowActive]}>
           <View style={[styles.methodIcon, { backgroundColor: colors.secondary[50] }]}>
             <Truck size={20} color={colors.secondary[500]} />
           </View>
@@ -78,7 +95,7 @@ export default function PaymentSettingsScreen() {
         <Surface style={styles.card} elevation={1}>
           <Text style={styles.cardTitle}>M-Pesa Number</Text>
           <Text style={styles.hint}>
-            This number will be pre-filled at checkout. You can always change it per order.
+            Pre-filled at checkout. You can still change it per order.
           </Text>
           <TextInput
             mode="outlined"
@@ -96,6 +113,8 @@ export default function PaymentSettingsScreen() {
       <Button
         mode="contained"
         onPress={handleSave}
+        loading={saveMutation.isPending}
+        disabled={saveMutation.isPending}
         style={styles.saveButton}
         contentStyle={styles.saveButtonContent}
       >
@@ -108,13 +127,14 @@ export default function PaymentSettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   card: {
     padding: spacing.lg,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.surface,
     marginBottom: spacing.md,
   },
-  cardTitle: { fontSize: 16, fontWeight: 'bold', color: colors.text.primary, marginBottom: spacing.md },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: colors.text.primary, marginBottom: spacing.xs },
   hint: { fontSize: 13, color: colors.text.secondary, marginBottom: spacing.md },
   methodRow: {
     flexDirection: 'row',

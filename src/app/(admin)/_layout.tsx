@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { LayoutDashboard, ShoppingBag, Users, Package, Tag, CreditCard, Bike } from 'lucide-react-native';
+import { LayoutDashboard, ShoppingBag, Users, Package, CreditCard, UserCircle } from 'lucide-react-native';
 import { colors } from '@/constants/theme';
 
 export default function AdminLayout() {
@@ -19,9 +19,11 @@ export default function AdminLayout() {
         tabBarLabelStyle: { fontSize: 10, fontWeight: '500' },
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.text.primary,
-        headerTitleStyle: { fontWeight: '600' },
+        headerTitleStyle: { fontWeight: '700', fontSize: 17 },
+        headerShadowVisible: true,
       }}
     >
+      {/* Dashboard has its own hero header */}
       <Tabs.Screen
         name="dashboard"
         options={{
@@ -30,62 +32,57 @@ export default function AdminLayout() {
           tabBarIcon: ({ color }) => <LayoutDashboard size={22} color={color} />,
         }}
       />
+
       <Tabs.Screen
         name="orders"
         options={{
           title: 'Orders',
-          headerShown: false,
+          headerShown: true,
           tabBarIcon: ({ color }) => <ShoppingBag size={22} color={color} />,
         }}
       />
+
       <Tabs.Screen
         name="users"
         options={{
           title: 'Users',
-          headerShown: false,
+          headerShown: true,
           tabBarIcon: ({ color }) => <Users size={22} color={color} />,
         }}
       />
+
       <Tabs.Screen
         name="products"
         options={{
           title: 'Products',
-          headerShown: false,
+          headerShown: true,
           tabBarIcon: ({ color }) => <Package size={22} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="categories"
-        options={{
-          title: 'Categories',
-          headerShown: false,
-          tabBarIcon: ({ color }) => <Tag size={22} color={color} />,
-        }}
-      />
+
       <Tabs.Screen
         name="payments"
         options={{
           title: 'Payments',
-          headerShown: false,
+          headerShown: true,
           tabBarIcon: ({ color }) => <CreditCard size={22} color={color} />,
         }}
       />
+
+      {/* Account has its own inline header with safe-area handling */}
       <Tabs.Screen
-        name="riders"
+        name="account"
         options={{
-          title: 'Riders',
+          title: 'Account',
           headerShown: false,
-          tabBarIcon: ({ color }) => <Bike size={22} color={color} />,
+          tabBarIcon: ({ color }) => <UserCircle size={22} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="order/[id]"
-        options={{
-          href: null, // hide from tab bar
-          title: 'Order Detail',
-          headerShown: true,
-        }}
-      />
+
+      {/* Hidden screens — not shown in tab bar */}
+      <Tabs.Screen name="categories" options={{ href: null, title: 'Categories' }} />
+      <Tabs.Screen name="riders" options={{ href: null, title: 'Riders', headerShown: true }} />
+      <Tabs.Screen name="order/[id]" options={{ href: null, title: 'Order Detail', headerShown: true }} />
     </Tabs>
   );
 }

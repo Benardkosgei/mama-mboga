@@ -4,38 +4,79 @@
     "slug": "mama-mboga",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#2E7D32"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.benaa.mamamboga"
+      "bundleIdentifier": "com.benaa.mamamboga",
+      "icon": "./assets/icon.png"
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2E7D32"
       },
-      "package": "com.benaa.mamamboga"
+      "package": "com.benaa.mamamboga",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ]
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/icon.png"
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "./plugins/withGradleVersion",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#2E7D32",
+          "sounds": []
+        }
+      ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Mama Mboga to access your photos to upload product images."
+          "photosPermission": "Allow Mama Mboga to access your photos to upload product images.",
+          "cameraPermission": "Allow Mama Mboga to use the camera to take product photos."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Mama Mboga to use Face ID for secure login."
         }
       ]
     ],
     "scheme": "mamamboga",
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "fe99455d-1532-4fa8-8d3f-625814eec103"
+      }
     }
   }
 }

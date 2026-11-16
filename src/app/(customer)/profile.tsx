@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, ActivityIndicator } from 'react-native';
 import { Text, Divider } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,10 +9,8 @@ import {
   User, Settings, CreditCard,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
+import { useAppSettings } from '@/hooks';
 import { colors, spacing, borderRadius } from '@/constants/theme';
-
-const SUPPORT_PHONE = '+254700000000'; // replace with real support number
-const SUPPORT_WHATSAPP = '254700000000'; // without +
 
 type MenuItem = {
   icon: React.ReactNode;
@@ -38,10 +36,21 @@ function MenuRow({ icon, label, onPress }: MenuItem) {
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { profile, logout } = useAuthStore();
+  const { profile, logout, clearSignOutError } = useAuthStore();
+  const { data: appSettings } = useAppSettings();
+  const [signingOut, setSigningOut] = useState(false);
 
-  const handleLogout = () => {
-    logout();
+  const SUPPORT_PHONE = appSettings?.support_phone ?? '+254754008271';
+  const SUPPORT_WHATSAPP = appSettings?.support_whatsapp ?? '254754008271';
+
+  const handleLogout = async () => {
+    setSigningOut(true);
+    clearSignOutError();
+    await logout();
+    const { signOutError } = useAuthStore.getState();
+    if (signOutError) {
+      Alert.alert('Signed out locally', `${signOutError}\n\nPlease close and reopen the app if this keeps happening.`);
+    }
     router.replace('/(auth)/login');
   };
 
@@ -94,6 +103,11 @@ export default function ProfileScreen() {
       icon: <Settings size={20} color={colors.text.primary} />,
       label: 'Notification Preferences',
       onPress: () => router.push('/(customer)/notification-preferences'),
+    },
+    {
+      icon: <HelpCircle size={20} color={colors.text.primary} />,
+      label: 'Terms & Privacy Policy',
+      onPress: () => router.push('/(customer)/legal'),
     },
   ];
 
@@ -178,9 +192,17 @@ export default function ProfileScreen() {
       </View>
 
       {/* Logout */}
-      <TouchableOpacity style={styles.logoutRow} onPress={handleLogout} activeOpacity={0.7}>
-        <LogOut size={18} color={colors.error} />
-        <Text style={styles.logoutText}>Logout</Text>
+      <TouchableOpacity
+        style={[styles.logoutRow, signingOut && styles.logoutRowDisabled]}
+        onPress={handleLogout}
+        activeOpacity={0.7}
+        disabled={signingOut}
+      >
+        {signingOut
+          ? <ActivityIndicator size={18} color={colors.error} />
+          : <LogOut size={18} color={colors.error} />
+        }
+        <Text style={styles.logoutText}>{signingOut ? 'Signing out…' : 'Logout'}</Text>
       </TouchableOpacity>
 
       <Text style={styles.version}>Mama Mboga v1.0.0</Text>
@@ -343,6 +365,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingVertical: spacing.md + 2,
     marginTop: spacing.sm,
+  },
+  logoutRowDisabled: {
+    opacity: 0.6,
   },
   logoutText: {
     fontSize: 15,

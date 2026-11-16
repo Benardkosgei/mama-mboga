@@ -28,3 +28,14 @@ dist-ssr
 
 expo-env.d.ts
 # @end expo-cli
+
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build / test artifacts
+jest-out.txt
+test-output.txt
+supabase/.temp/

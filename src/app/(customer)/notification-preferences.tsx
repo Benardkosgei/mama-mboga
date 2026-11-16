@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, Switch, Surface, Divider, Button } from 'react-native-paper';
+import { Text, Switch, Surface, Divider, Button, ActivityIndicator } from 'react-native-paper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, borderRadius } from '@/constants/theme';
+
+const STORAGE_KEY = 'notification_preferences';
 
 interface PrefItem {
   key: string;
@@ -17,21 +20,49 @@ const PREFS: PrefItem[] = [
   { key: 'new_products', label: 'New Products', description: 'Alerts when new produce is listed in your area' },
 ];
 
+const DEFAULT_PREFS: Record<string, boolean> = {
+  order_updates: true,
+  payment_success: true,
+  delivery_updates: true,
+  promotions: false,
+  new_products: false,
+};
+
 export default function NotificationPreferencesScreen() {
-  const [prefs, setPrefs] = useState<Record<string, boolean>>({
-    order_updates: true,
-    payment_success: true,
-    delivery_updates: true,
-    promotions: false,
-    new_products: false,
-  });
+  const [prefs, setPrefs] = useState<Record<string, boolean>>(DEFAULT_PREFS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((raw) => {
+        if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const toggle = (key: string) => setPrefs((p) => ({ ...p, [key]: !p[key] }));
 
-  const handleSave = () => {
-    // Stored locally — push notification topic subscriptions would go here
-    Alert.alert('Saved', 'Your notification preferences have been updated.');
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+      Alert.alert('Saved', 'Your notification preferences have been updated.');
+    } catch {
+      Alert.alert('Error', 'Could not save preferences. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={colors.primary[500]} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -58,6 +89,8 @@ export default function NotificationPreferencesScreen() {
       <Button
         mode="contained"
         onPress={handleSave}
+        loading={saving}
+        disabled={saving}
         style={styles.saveButton}
         contentStyle={styles.saveButtonContent}
       >
@@ -70,6 +103,7 @@ export default function NotificationPreferencesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   card: {
     padding: spacing.lg,
     borderRadius: borderRadius.lg,

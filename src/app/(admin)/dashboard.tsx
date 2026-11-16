@@ -1,14 +1,15 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, Surface, Button, ActivityIndicator } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { ChevronRight } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { formatPrice } from '@/utils';
 import { ORDER_STATUSES } from '@/constants';
 import { colors, spacing, borderRadius } from '@/constants/theme';
-import type { Order, OrderStatus } from '@/types';
+import type { OrderStatus } from '@/types';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -49,11 +50,41 @@ export default function AdminDashboard() {
   });
 
   const statCards = [
-    { label: 'Total Users', value: stats?.totalUsers ?? '—', icon: '👥', color: colors.primary[500] },
-    { label: 'Active Sellers', value: stats?.activeSellers ?? '—', icon: '🛒', color: colors.secondary[500] },
-    { label: 'Active Orders', value: stats?.pendingOrders ?? '—', icon: '📦', color: colors.warning },
-    { label: "Today's Revenue", value: stats ? formatPrice(stats.todayRevenue) : '—', icon: '💰', color: colors.success },
-    { label: 'Pending Approvals', value: stats?.pendingSellers ?? '—', icon: '⏳', color: colors.error },
+    {
+      label: 'Total Users',
+      value: stats?.totalUsers ?? '—',
+      icon: '👥',
+      color: colors.primary[500],
+      onPress: () => router.push('/(admin)/users'),
+    },
+    {
+      label: 'Active Sellers',
+      value: stats?.activeSellers ?? '—',
+      icon: '🛒',
+      color: colors.secondary[500],
+      onPress: () => router.push('/(admin)/users'),
+    },
+    {
+      label: 'Active Orders',
+      value: stats?.pendingOrders ?? '—',
+      icon: '📦',
+      color: colors.warning,
+      onPress: () => router.push('/(admin)/orders'),
+    },
+    {
+      label: "Today's Revenue",
+      value: stats ? formatPrice(stats.todayRevenue) : '—',
+      icon: '💰',
+      color: colors.success,
+      onPress: () => router.push('/(admin)/payments'),
+    },
+    {
+      label: 'Pending Approvals',
+      value: stats?.pendingSellers ?? '—',
+      icon: '⏳',
+      color: colors.error,
+      onPress: () => router.push('/(admin)/users'),
+    },
   ];
 
   const quickActions = [
@@ -80,11 +111,21 @@ export default function AdminDashboard() {
       ) : (
         <View style={styles.statsGrid}>
           {statCards.map((stat, index) => (
-            <Surface key={index} style={[styles.statCard, { borderLeftColor: stat.color }]} elevation={1}>
-              <Text style={styles.statIcon}>{stat.icon}</Text>
-              <Text style={styles.statValue}>{String(stat.value)}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </Surface>
+            <TouchableOpacity
+              key={index}
+              onPress={stat.onPress}
+              activeOpacity={0.75}
+              style={styles.statCardWrapper}
+            >
+              <Surface style={[styles.statCard, { borderLeftColor: stat.color }]} elevation={1}>
+                <View style={styles.statCardTop}>
+                  <Text style={styles.statIcon}>{stat.icon}</Text>
+                  <ChevronRight size={14} color={colors.text.disabled} />
+                </View>
+                <Text style={[styles.statValue, { color: stat.color }]}>{String(stat.value)}</Text>
+                <Text style={styles.statLabel}>{stat.label}</Text>
+              </Surface>
+            </TouchableOpacity>
           ))}
         </View>
       )}
@@ -103,7 +144,12 @@ export default function AdminDashboard() {
           recentOrders.map((order) => {
             const statusInfo = ORDER_STATUSES[order.status as OrderStatus] || { label: order.status, color: colors.text.secondary };
             return (
-              <View key={order.id} style={styles.orderRow}>
+              <TouchableOpacity
+                key={order.id}
+                style={styles.orderRow}
+                onPress={() => router.push(`/(admin)/order/${order.id}`)}
+                activeOpacity={0.7}
+              >
                 <View>
                   <Text style={styles.orderId}>{order.order_number}</Text>
                   <Text style={styles.orderCustomer}>{(order.customer as any)?.full_name}</Text>
@@ -114,7 +160,8 @@ export default function AdminDashboard() {
                     {statusInfo.label}
                   </Text>
                 </View>
-              </View>
+                <ChevronRight size={16} color={colors.text.disabled} style={styles.orderChevron} />
+              </TouchableOpacity>
             );
           })
         ) : (
@@ -142,22 +189,30 @@ export default function AdminDashboard() {
       </Surface>
 
       {/* Pending Approvals */}
-      <Surface style={styles.section} elevation={1}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Pending Seller Approvals</Text>
-          {stats?.pendingSellers ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{stats.pendingSellers}</Text>
+      <TouchableOpacity
+        activeOpacity={0.75}
+        onPress={() => router.push('/(admin)/users')}
+      >
+        <Surface style={styles.section} elevation={1}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Pending Seller Approvals</Text>
+            <View style={styles.sectionHeaderRight}>
+              {stats?.pendingSellers ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{stats.pendingSellers}</Text>
+                </View>
+              ) : null}
+              <ChevronRight size={18} color={colors.text.secondary} />
             </View>
-          ) : null}
-        </View>
-        <Text style={styles.pendingHint}>
-          Review and approve new seller registrations
-        </Text>
-        <Button mode="contained" onPress={() => router.push('/(admin)/users')}>
-          Review Applications
-        </Button>
-      </Surface>
+          </View>
+          <Text style={styles.pendingHint}>
+            Review and approve new seller registrations
+          </Text>
+          <Button mode="contained" onPress={() => router.push('/(admin)/users')}>
+            Review Applications
+          </Button>
+        </Surface>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -189,22 +244,28 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.md,
   },
-  statCard: {
+  statCardWrapper: {
     flex: 1,
     minWidth: 140,
+  },
+  statCard: {
     padding: spacing.lg,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.surface,
     borderLeftWidth: 4,
   },
-  statIcon: {
-    fontSize: 24,
+  statCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: spacing.sm,
   },
+  statIcon: {
+    fontSize: 24,
+  },
   statValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    color: colors.text.primary,
   },
   statLabel: {
     fontSize: 12,
@@ -223,6 +284,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.md,
+  },
+  sectionHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   sectionTitle: {
     fontSize: 16,
@@ -244,7 +310,7 @@ const styles = StyleSheet.create({
   },
   orderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -260,6 +326,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   orderRight: {
+    flex: 1,
     alignItems: 'flex-end',
   },
   orderAmount: {
@@ -272,6 +339,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 2,
     textTransform: 'capitalize',
+  },
+  orderChevron: {
+    marginLeft: spacing.sm,
   },
   actionsGrid: {
     flexDirection: 'row',

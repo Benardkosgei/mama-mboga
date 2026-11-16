@@ -3,10 +3,12 @@ export type UserRole = 'admin' | 'seller' | 'customer' | 'rider';
 export interface Profile {
   id: string;
   phone: string;
+  email?: string;
   full_name: string;
   role: UserRole;
   avatar_url?: string;
   is_approved?: boolean | null;
+  is_online?: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -157,4 +159,15 @@ export interface Notification {
   data?: Record<string, any>;
   is_read: boolean;
   created_at: string;
+}
+
+export interface ProductReview {
+  id: string;
+  product_id: string;
+  customer_id: string;
+  order_id?: string | null; // optional — one review per customer per product
+  rating: number; // 1–5
+  comment?: string;
+  created_at: string;
+  customer?: Profile;
 }

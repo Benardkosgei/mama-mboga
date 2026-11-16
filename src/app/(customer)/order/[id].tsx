@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Text, Chip, Button, Surface, Divider, ActivityIndicator } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { formatPrice, formatWhatsAppMessage } from '@/utils';
@@ -17,6 +17,22 @@ export default function OrderDetailScreen() {
   const queryClient = useQueryClient();
   const { profile } = useAuthStore();
   const canDispatch = profile?.role === 'admin' || profile?.role === 'seller';
+  const isCustomer = profile?.role === 'customer';
+
+  const cancelOrderMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'cancelled' })
+        .eq('id', params.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', params.id] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
 
   // Realtime: refresh when order status changes
   useEffect(() => {
@@ -94,6 +110,17 @@ export default function OrderDetailScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Back button */}
+        <Button
+          mode="text"
+          icon="arrow-left"
+          onPress={() => router.back()}
+          style={styles.backButton}
+          textColor={colors.text.primary}
+        >
+          Back
+        </Button>
+
         {/* Order Header */}
         <Surface style={styles.headerCard} elevation={2}>
           <View style={styles.headerTop}>
@@ -246,6 +273,35 @@ export default function OrderDetailScreen() {
           </Button>
         </View>
       )}
+
+      {/* Cancel Order (customer only, pending_payment orders) */}
+      {isCustomer && order.status === 'pending_payment' && (
+        <View style={styles.footer}>
+          <Button
+            mode="outlined"
+            textColor={colors.error}
+            onPress={() =>
+              Alert.alert(
+                'Cancel Order',
+                'Are you sure you want to cancel this order?',
+                [
+                  { text: 'Keep Order', style: 'cancel' },
+                  {
+                    text: 'Cancel Order',
+                    style: 'destructive',
+                    onPress: () => cancelOrderMutation.mutate(),
+                  },
+                ]
+              )
+            }
+            loading={cancelOrderMutation.isPending}
+            style={styles.dispatchButton}
+            contentStyle={styles.dispatchButtonContent}
+          >
+            Cancel Order
+          </Button>
+        </View>
+      )}
     </View>
   );
 }
@@ -259,6 +315,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginBottom: spacing.sm,
+    marginLeft: -spacing.sm,
   },
   content: {
     padding: spacing.md,

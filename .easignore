@@ -1,0 +1,42 @@
+# Dependencies (reinstalled during build)
+node_modules/
+middleware/node_modules/
+
+# Android build artifacts
+android/.gradle/
+android/app/build/
+android/build/
+
+# iOS build artifacts
+ios/build/
+ios/Pods/
+
+# Expo cache
+.expo/
+
+# Git
+.git/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Documentation
+README.md
+docs/
+
+# Local env files (use EAS environment variables instead)
+.env
+.env.local
+middleware/.env

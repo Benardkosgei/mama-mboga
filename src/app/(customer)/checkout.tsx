@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { Text, Button, Surface, RadioButton, TextInput, ActivityIndicator } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Smartphone, Truck } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
-import { useCreateOrder, useCart } from '@/hooks';
+import { useCreateOrder, useCart, usePaymentSettings } from '@/hooks';
 import { formatPrice } from '@/utils';
 import { DELIVERY_FEE } from '@/constants';
 import { colors, spacing, borderRadius } from '@/constants/theme';
@@ -20,7 +20,15 @@ export default function CheckoutScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mpesa');
 
   const { data: cart } = useCart();
+  const { data: savedPaymentSettings } = usePaymentSettings();
   const createOrderMutation = useCreateOrder();
+
+  // Apply saved default payment method once loaded
+  useEffect(() => {
+    if (savedPaymentSettings?.defaultMethod) {
+      setPaymentMethod(savedPaymentSettings.defaultMethod);
+    }
+  }, [savedPaymentSettings?.defaultMethod]);
 
   const subtotal = (cart?.items || []).reduce((sum: number, item: any) => {
     const price = item.product?.discount_price || item.product?.price || 0;
@@ -28,7 +36,7 @@ export default function CheckoutScreen() {
   }, 0);
   const total = subtotal + DELIVERY_FEE;
 
-  const { data: addresses, isLoading } = useQuery({
+  const { data: addresses, isLoading, error: addressError } = useQuery({
     queryKey: ['addresses'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -44,6 +52,10 @@ export default function CheckoutScreen() {
   });
 
   const handlePlaceOrder = () => {
+    if (!cart?.items?.length) {
+      Alert.alert('Empty Cart', 'Your cart is empty. Add items before checking out.');
+      return;
+    }
     if (!selectedAddress) {
       Alert.alert('Select Address', 'Please select a delivery address');
       return;
@@ -67,6 +79,16 @@ export default function CheckoutScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary[500]} />
+      </View>
+    );
+  }
+
+  if (addressError) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={{ color: colors.error, textAlign: 'center', padding: spacing.lg }}>
+          Failed to load addresses. Please go back and try again.
+        </Text>
       </View>
     );
   }
